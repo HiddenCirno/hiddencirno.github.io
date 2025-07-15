@@ -763,12 +763,15 @@
             },
             methods: {
                 toggleTheme() {
-                    this.theme = this.theme === 'dark' ? 'light' : 'dark';
-                    localStorage.theme = this.theme;
+                    // 强制切换并覆盖系统偏好
                     if (this.theme === 'dark') {
-                        document.documentElement.classList.add('dark');
-                    } else {
+                        this.theme = 'light';
+                        localStorage.setItem('theme', 'light');
                         document.documentElement.classList.remove('dark');
+                    } else {
+                        this.theme = 'dark';
+                        localStorage.setItem('theme', 'dark');
+                        document.documentElement.classList.add('dark');
                     }
                 },
                 selectRow(row) {
@@ -1348,6 +1351,18 @@
                 // 初始化时默认折叠所有自定义词库内容
                 this.customLibraries.forEach(lib => { lib._collapsed = true; });
                 // 移除自动添加的内置自定义词库（不做任何内置库初始化）
+                // 监听系统主题变化，但仅在未手动设置时生效
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                    if (!localStorage.getItem('theme')) {
+                        if (e.matches) {
+                            this.theme = 'dark';
+                            document.documentElement.classList.add('dark');
+                        } else {
+                            this.theme = 'light';
+                            document.documentElement.classList.remove('dark');
+                        }
+                    }
+                });
             }
         }).mount('#app');
     </script>
