@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>日语五十音学习 - 增强版</title>
+    <title>词点</title>
     <!-- 引入 Tailwind CSS (Play CDN) -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <!-- 引入 Vue 3 -->
@@ -76,6 +76,7 @@
             text-align: center;
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
 </head>
 
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 transition-colors duration-200">
@@ -85,7 +86,7 @@
             class="p-4 bg-gradient-to-r from-green-500 to-teal-500 dark:from-green-700 dark:to-teal-700 text-white flex justify-between items-center shadow-md">
             <div class="flex items-center space-x-3">
                 <i class="fas fa-language text-2xl"></i>
-                <h1 class="text-xl font-bold">五十音マスター</h1>
+                <h1 class="text-xl font-bold">词点</h1>
             </div>
             <div class="flex items-center space-x-4">
                 <div class="bg-white/20 rounded-full px-3 py-1">
@@ -101,174 +102,299 @@
         <!-- 主内容区 -->
         <main class="flex-grow p-4 container mx-auto">
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- 左侧控制面板 -->
-                <div class="lg:col-span-1 space-y-6">
-                    <!-- 五十音图选择 -->
-                    <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
-                        <div class="flex justify-between items-center mb-3">
-                            <h2 class="text-lg font-semibold flex items-center">
-                                <i class="fas fa-th-list mr-2 text-green-500"></i> 选择假名组
+                <!-- 左侧面板分离 -->
+                <template v-if="currentView==='japanese'">
+                    <div class="lg:col-span-1 space-y-6">
+                        <!-- 日语模式左侧内容（原有内容） -->
+                        <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
+                            <div class="flex justify-between items-center mb-3">
+                                <h2 class="text-lg font-semibold flex items-center">
+                                    <i class="fas fa-th-list mr-2 text-green-500"></i> 选择假名组
+                                </h2>
+                                <button @click="showLibraryManager = true" class="text-sm text-green-600 hover:text-green-800 dark:hover:text-green-400">
+                                    <i class="fas fa-cog mr-1"></i>管理词库
+                                </button>
+                            </div>
+                            <div class="custom-scrollbar grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-[400px] overflow-y-auto pr-2">
+                                <!-- 推荐练习组 -->
+                                <div class="col-span-full text-xs text-gray-500 font-medium mt-2 mb-1">推荐练习</div>
+                                <button v-for="row in recommendedGroups" :key="row.name" @click="selectRow(row)"
+                                    class="highlight-group p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-green-100 dark:hover:bg-green-900 transition-colors flex flex-col items-center">
+                                    <span class="font-bold">{{ row.name }}</span>
+                                    <span class="text-xs mt-1">{{ row.kana.length }}个假名</span>
+                                </button>
+                                <!-- 自定义模式入口（加推荐角标，修正大小） -->
+                                <button @click="switchToCustom" :class="{'ring-2 ring-pink-500': currentView==='custom'}"
+                                    class="highlight-group p-2 bg-pink-50 dark:bg-pink-900/30 rounded-lg hover:bg-pink-100 dark:hover:bg-pink-900/50 transition-colors flex flex-col items-center w-full min-h-[72px] justify-center">
+                                    <span class="font-bold text-pink-700 dark:text-pink-200 text-base">自定义词库练习</span>
+                                    <span class="text-xs mt-1">支持双词/三词</span>
+                                </button>
+                                <!-- 标准五十音行 -->
+                                <div class="col-span-full text-xs text-gray-500 font-medium mt-4 mb-1">标准五十音行</div>
+                                <button v-for="row in kanaRows" :key="row.name" @click="selectRow(row)"
+                                    :class="{'ring-2 ring-green-500': selectedRow && selectedRow.id === row.id}"
+                                    class="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-green-100 dark:hover:bg-green-900 transition-colors flex flex-col items-center">
+                                    <span class="font-bold">{{ row.name }}</span>
+                                    <span class="text-xs mt-1">{{ row.kana[0] }}{{ row.katakana[0] }}</span>
+                                </button>
+                                <!-- 导入的词库 -->
+                                <div class="col-span-full text-xs text-gray-500 font-medium mt-4 mb-1" v-if="importedLibraries.length > 0">
+                                    导入的词库
+                                </div>
+                                <button v-for="lib in importedLibraries" :key="lib.id" @click="selectLibrary(lib)"
+                                    :class="{'ring-2 ring-yellow-500': selectedRow && selectedRow.id === lib.id}"
+                                    class="library-item p-2 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/50 transition-colors flex flex-col items-center relative">
+                                    <span class="font-bold text-sm">{{ lib.name }}</span>
+                                    <span class="text-xs mt-1">{{ lib.words.length }}个词汇</span>
+                                    <button @click.stop="editLibraryName(lib)" class="absolute top-1 right-1 text-xs text-gray-500 hover:text-yellow-600">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                </button>
+                            </div>
+                        </section>
+
+                        <!-- 练习设置 -->
+                        <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
+                            <h2 class="text-lg font-semibold mb-3 flex items-center">
+                                <i class="fas fa-cogs mr-2 text-blue-500"></i> 练习模式
                             </h2>
-                            <button @click="showLibraryManager = true" class="text-sm text-green-600 hover:text-green-800 dark:hover:text-green-400">
-                                <i class="fas fa-cog mr-1"></i>管理词库
-                            </button>
-                        </div>
-                        <div class="custom-scrollbar grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-[400px] overflow-y-auto pr-2">
-                            <!-- 推荐练习组 -->
-                            <div class="col-span-full text-xs text-gray-500 font-medium mt-2 mb-1">推荐练习</div>
-                            <button v-for="row in recommendedGroups" :key="row.name" @click="selectRow(row)"
-                                class="highlight-group p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-green-100 dark:hover:bg-green-900 transition-colors flex flex-col items-center">
-                                <span class="font-bold">{{ row.name }}</span>
-                                <span class="text-xs mt-1">{{ row.kana.length }}个假名</span>
-                            </button>
-                            
-                            <!-- 标准五十音行 -->
-                            <div class="col-span-full text-xs text-gray-500 font-medium mt-4 mb-1">标准五十音行</div>
-                            <button v-for="row in kanaRows" :key="row.name" @click="selectRow(row)"
-                                :class="{'ring-2 ring-green-500': selectedRow && selectedRow.id === row.id}"
-                                class="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-green-100 dark:hover:bg-green-900 transition-colors flex flex-col items-center">
-                                <span class="font-bold">{{ row.name }}</span>
-                                <span class="text-xs mt-1">{{ row.kana[0] }}{{ row.katakana[0] }}</span>
-                            </button>
-                            
-                            <!-- 导入的词库 -->
-                            <div class="col-span-full text-xs text-gray-500 font-medium mt-4 mb-1" v-if="importedLibraries.length > 0">
-                                导入的词库
-                            </div>
-                            <button v-for="lib in importedLibraries" :key="lib.id" @click="selectLibrary(lib)"
-                                :class="{'ring-2 ring-yellow-500': selectedRow && selectedRow.id === lib.id}"
-                                class="library-item p-2 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/50 transition-colors flex flex-col items-center relative">
-                                <span class="font-bold text-sm">{{ lib.name }}</span>
-                                <span class="text-xs mt-1">{{ lib.words.length }}个词汇</span>
-                                <button @click.stop="editLibraryName(lib)" class="absolute top-1 right-1 text-xs text-gray-500 hover:text-yellow-600">
-                                    <i class="fas fa-edit"></i>
+                            <div class="grid grid-cols-1 gap-2">
+                                <button @click="setMode('kana-romaji')"
+                                    :class="mode === 'kana-romaji' ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-700'"
+                                    class="px-4 py-3 rounded-lg flex items-center justify-between transition-all">
+                                    <span>假名 → 罗马音</span>
+                                    <i class="fas fa-arrow-right"></i>
                                 </button>
-                            </button>
-                        </div>
-                    </section>
-
-                    <!-- 练习设置 -->
-                    <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
-                        <h2 class="text-lg font-semibold mb-3 flex items-center">
-                            <i class="fas fa-cogs mr-2 text-blue-500"></i> 练习模式
-                        </h2>
-                        <div class="grid grid-cols-1 gap-2">
-                            <button @click="setMode('kana-romaji')"
-                                :class="mode === 'kana-romaji' ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-700'"
-                                class="px-4 py-3 rounded-lg flex items-center justify-between transition-all">
-                                <span>假名 → 罗马音</span>
-                                <i class="fas fa-arrow-right"></i>
-                            </button>
-                            <button @click="setMode('romaji-kana')"
-                                :class="mode === 'romaji-kana' ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-700'"
-                                class="px-4 py-3 rounded-lg flex items-center justify-between transition-all">
-                                <span>罗马音 → 假名</span>
-                                <i class="fas fa-arrow-right"></i>
-                            </button>
-                            <button @click="setMode('hiragana-katakana')"
-                                :class="mode === 'hiragana-katakana' ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-700'"
-                                class="px-4 py-3 rounded-lg flex items-center justify-between transition-all">
-                                <span>平假名 ↔ 片假名</span>
-                                <i class="fas fa-exchange-alt"></i>
-                            </button>
-                        </div>
-                    </section>
-                </div>
-
-                <!-- 右侧练习区域 -->
+                                <button @click="setMode('romaji-kana')"
+                                    :class="mode === 'romaji-kana' ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-700'"
+                                    class="px-4 py-3 rounded-lg flex items-center justify-between transition-all">
+                                    <span>罗马音 → 假名</span>
+                                    <i class="fas fa-arrow-right"></i>
+                                </button>
+                                <button @click="setMode('hiragana-katakana')"
+                                    :class="mode === 'hiragana-katakana' ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-gray-700'"
+                                    class="px-4 py-3 rounded-lg flex items-center justify-between transition-all">
+                                    <span>平假名 ↔ 片假名</span>
+                                    <i class="fas fa-exchange-alt"></i>
+                                </button>
+                            </div>
+                        </section>
+                    </div>
+                </template>
+                <template v-else>
+                    <div class="lg:col-span-1 space-y-6">
+                        <!-- 自定义模式左侧内容 -->
+                        <button @click="switchToJapanese" class="w-full py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                            <i class="fas fa-arrow-left mr-2"></i>返回日语模式
+                        </button>
+                        <!-- 三词词库对照模式选择 -->
+                        <section v-if="selectedCustomLibrary && selectedCustomLibrary.type==='triple'" class="bg-white dark:bg-gray-800 rounded-xl shadow p-4 mt-4">
+                            <h2 class="text-lg font-semibold mb-3 flex items-center">
+                                <i class="fas fa-random mr-2 text-pink-500"></i> 对照模式
+                            </h2>
+                            <div class="flex flex-col gap-2">
+                                <label>
+                                    <input type="radio" value="a-b" v-model="tripleMode" class="mr-2"> {{ selectedCustomLibrary.words[0]?.word1 || 'A' }} → {{ selectedCustomLibrary.words[0]?.word2 || 'B' }}
+                                </label>
+                                <label>
+                                    <input type="radio" value="b-c" v-model="tripleMode" class="mr-2"> {{ selectedCustomLibrary.words[0]?.word2 || 'B' }} → {{ selectedCustomLibrary.words[0]?.word3 || 'C' }}
+                                </label>
+                                <label>
+                                    <input type="radio" value="a-c" v-model="tripleMode" class="mr-2"> {{ selectedCustomLibrary.words[0]?.word1 || 'A' }} → {{ selectedCustomLibrary.words[0]?.word3 || 'C' }}
+                                </label>
+                            </div>
+                        </section>
+                        <!-- 自定义词库管理入口 -->
+                        <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-4 mt-4">
+                            <div class="flex justify-between items-center mb-3">
+                                <h2 class="text-lg font-semibold flex items-center">
+                                    <i class="fas fa-cogs mr-2 text-pink-500"></i> 词库管理
+                                </h2>
+                                <button @click="showCustomLibraryManager = true" class="text-sm text-pink-600 hover:text-pink-800 dark:hover:text-pink-400">
+                                    <i class="fas fa-cog mr-1"></i>管理
+                                </button>
+                            </div>
+                        </section>
+                    </div>
+                </template>
+                <!-- 主内容区分离 -->
                 <div class="lg:col-span-2 space-y-6">
-                    <!-- 题型选择 -->
-                    <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
-                        <h2 class="text-lg font-semibold mb-3 flex items-center">
-                            <i class="fas fa-pencil-alt mr-2 text-purple-500"></i> 题型选择
-                        </h2>
-                        <div class="flex gap-4">
-                            <button @click="questionType = 'multiple'"
-                                :class="questionType === 'multiple' ? 'bg-purple-500 text-white' : 'bg-gray-100 dark:bg-gray-700'"
-                                class="px-4 py-2 rounded-lg flex-1 flex items-center justify-center">
-                                <i class="fas fa-list-ol mr-2"></i>选择题
-                            </button>
-                            <button @click="questionType = 'input'"
-                                :class="questionType === 'input' ? 'bg-purple-500 text-white' : 'bg-gray-100 dark:bg-gray-700'"
-                                class="px-4 py-2 rounded-lg flex-1 flex items-center justify-center">
-                                <i class="fas fa-keyboard mr-2"></i>拼写题
-                            </button>
-                        </div>
-                    </section>
-
-                    <!-- JSON 题库上传 -->
-                    <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
-                        <h2 class="text-lg font-semibold mb-3 flex items-center">
-                            <i class="fas fa-file-import mr-2 text-yellow-500"></i> 导入词库 (JSON)
-                        </h2>
-                        <div class="flex gap-2">
-                            <input type="file" accept=".json" @change="loadJson"
-                                class="border p-2 rounded-lg bg-gray-50 dark:bg-gray-700 flex-grow" />
-                            <button @click="downloadSample" class="px-3 bg-gray-200 dark:bg-gray-700 rounded-lg">
-                                <i class="fas fa-download"></i>
-                            </button>
-                        </div>
-                    </section>
-
-                    <!-- 练习区域 -->
-                    <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
-                        <div v-if="currentQuestion" class="text-center">
-                            <div class="mb-6">
-                                <p class="text-lg mb-2">请{{ questionType === 'multiple' ? '选择' : '输入' }}下列的 {{
-                                    modeDescription }}：</p>
-                                <div class="text-5xl font-bold min-h-[80px] flex items-center justify-center mb-2">
-                                    {{ questionPrompt }}
-                                </div>
-                                <div v-if="mode === 'hiragana-katakana'" class="text-sm text-gray-500">
-                                    {{ direction === 'hira-to-kata' ? '(平假名 → 片假名)' : '(片假名 → 平假名)' }}
-                                </div>
-                                <div v-if="hasDuplicateOptions" class="text-xs text-gray-500 mt-1">
-                                    <i class="fas fa-info-circle"></i> 选项包含重复假名，重复选项不属于正确选项！（已用*标记）
-                                </div>
-                            </div>
-
-                            <!-- 选择题选项 -->
-                            <div v-if="questionType === 'multiple'" class="grid grid-cols-2 gap-4 mb-6">
-                                <button v-for="(opt, idx) in currentOptions" :key="idx" @click="answer(opt)"
-                                    class="p-4 bg-blue-50 dark:bg-blue-900 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors text-xl font-medium">
-                                    {{ opt }}
+                    <template v-if="currentView==='japanese'">
+                        <!-- 题型选择 -->
+                        <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
+                            <h2 class="text-lg font-semibold mb-3 flex items-center">
+                                <i class="fas fa-pencil-alt mr-2 text-purple-500"></i> 题型选择
+                            </h2>
+                            <div class="flex gap-4">
+                                <button @click="questionType = 'multiple'"
+                                    :class="questionType === 'multiple' ? 'bg-purple-500 text-white' : 'bg-gray-100 dark:bg-gray-700'"
+                                    class="px-4 py-2 rounded-lg flex-1 flex items-center justify-center">
+                                    <i class="fas fa-list-ol mr-2"></i>选择题
+                                </button>
+                                <button @click="questionType = 'input'"
+                                    :class="questionType === 'input' ? 'bg-purple-500 text-white' : 'bg-gray-100 dark:bg-gray-700'"
+                                    class="px-4 py-2 rounded-lg flex-1 flex items-center justify-center">
+                                    <i class="fas fa-keyboard mr-2"></i>拼写题
                                 </button>
                             </div>
+                        </section>
 
-                            <!-- 填写题输入 -->
-                            <div v-if="questionType === 'input'" class="mb-6">
-                                <div class="relative">
-                                    <input v-model="userInput" @keyup.enter="submitAnswer"
-                                        class="border-2 p-4 rounded-xl w-full bg-gray-50 dark:bg-gray-700 text-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-                                        placeholder="请输入答案" />
-                                    <button @click="submitAnswer"
-                                        class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-green-500 text-white rounded-lg px-4 py-2">
-                                        提交
+                        <!-- JSON 题库上传 -->
+                        <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
+                            <h2 class="text-lg font-semibold mb-3 flex items-center">
+                                <i class="fas fa-file-import mr-2 text-yellow-500"></i> 导入词库 (JSON)
+                            </h2>
+                            <div class="flex gap-2">
+                                <input type="file" accept=".json" @change="loadJson"
+                                    class="border p-2 rounded-lg bg-gray-50 dark:bg-gray-700 flex-grow" />
+                                <button @click="downloadSample" class="px-3 bg-gray-200 dark:bg-gray-700 rounded-lg">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </div>
+                        </section>
+
+                        <!-- 练习区域 -->
+                        <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
+                            <div v-if="currentQuestion" class="text-center">
+                                <div class="mb-6">
+                                    <p class="text-lg mb-2">请{{ questionType === 'multiple' ? '选择' : '输入' }}下列的 {{
+                                        modeDescription }}：</p>
+                                    <div class="text-5xl font-bold min-h-[80px] flex items-center justify-center mb-2">
+                                        {{ questionPrompt }}
+                                    </div>
+                                    <div v-if="mode === 'hiragana-katakana'" class="text-sm text-gray-500">
+                                        {{ direction === 'hira-to-kata' ? '(平假名 → 片假名)' : '(片假名 → 平假名)' }}
+                                    </div>
+                                    <div v-if="hasDuplicateOptions" class="text-xs text-gray-500 mt-1">
+                                        <i class="fas fa-info-circle"></i> 选项包含重复假名，重复选项不属于正确选项！（已用*标记）
+                                    </div>
+                                </div>
+
+                                <!-- 选择题选项 -->
+                                <div v-if="questionType === 'multiple'" class="grid grid-cols-2 gap-4 mb-6">
+                                    <button v-for="(opt, idx) in currentOptions" :key="idx" @click="answer(opt)"
+                                        class="p-4 bg-blue-50 dark:bg-blue-900 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors text-xl font-medium">
+                                        {{ opt }}
+                                    </button>
+                                </div>
+
+                                <!-- 填写题输入 -->
+                                <div v-if="questionType === 'input'" class="mb-6">
+                                    <div class="relative">
+                                        <input v-model="userInput" @keyup.enter="submitAnswer"
+                                            class="border-2 p-4 rounded-xl w-full bg-gray-50 dark:bg-gray-700 text-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+                                            placeholder="请输入答案" />
+                                        <button @click="submitAnswer"
+                                            class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-green-500 text-white rounded-lg px-4 py-2">
+                                            提交
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- 反馈 -->
+                                <div v-if="feedback" class="mt-4">
+                                    <div :class="feedback === '正确' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
+                                        class="p-4 rounded-xl text-lg">
+                                        <i :class="feedback === '正确' ? 'fas fa-check-circle' : 'fas fa-times-circle'"
+                                            class="mr-2"></i>
+                                        {{ feedback }}
+                                        <span v-if="feedback === '错误'">正确答案: {{ correctAnswer }}</span>
+                                    </div>
+                                    <button @click="nextQuestion"
+                                        class="mt-4 px-6 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors">
+                                        <i class="fas fa-arrow-right mr-2"></i>下一题
                                     </button>
                                 </div>
                             </div>
 
-                            <!-- 反馈 -->
-                            <div v-if="feedback" class="mt-4">
-                                <div :class="feedback === '正确' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
-                                    class="p-4 rounded-xl text-lg">
-                                    <i :class="feedback === '正确' ? 'fas fa-check-circle' : 'fas fa-times-circle'"
-                                        class="mr-2"></i>
-                                    {{ feedback }}
-                                    <span v-if="feedback === '错误'">正确答案: {{ correctAnswer }}</span>
-                                </div>
-                                <button @click="nextQuestion"
-                                    class="mt-4 px-6 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors">
-                                    <i class="fas fa-arrow-right mr-2"></i>下一题
+                            <div v-else class="text-center py-12">
+                                <i class="fas fa-book-open text-5xl text-gray-300 mb-4"></i>
+                                <p class="text-xl">请选择假名组开始练习</p>
+                            </div>
+                        </section>
+                    </template>
+                    <template v-if="currentView==='custom'">
+                        <!-- 题库上传与示例下载 -->
+                        <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-4 mb-4">
+                            <h2 class="text-lg font-semibold mb-3 flex items-center">
+                                <i class="fas fa-file-import mr-2 text-pink-500"></i> 导入自定义词库 (JSON)
+                            </h2>
+                            <div class="flex gap-2 mb-2">
+                                <input type="file" accept=".json" @change="loadCustomJson"
+                                    class="border p-2 rounded-lg bg-gray-50 dark:bg-gray-700 flex-grow" />
+                                <button @click="downloadCustomSample('double')" class="px-3 bg-pink-200 dark:bg-pink-700 rounded-lg text-pink-900 dark:text-pink-100 mr-1">
+                                    <i class="fas fa-download"></i> 双词示例
+                                </button>
+                                <button @click="downloadCustomSample('triple')" class="px-3 bg-pink-200 dark:bg-pink-700 rounded-lg text-pink-900 dark:text-pink-100">
+                                    <i class="fas fa-download"></i> 三词示例
                                 </button>
                             </div>
-                        </div>
-
-                        <div v-else class="text-center py-12">
-                            <i class="fas fa-book-open text-5xl text-gray-300 mb-4"></i>
-                            <p class="text-xl">请选择假名组开始练习</p>
-                        </div>
-                    </section>
+                        </section>
+                        <!-- 词库管理 -->
+                        <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-4 mb-4">
+                            <h2 class="text-lg font-semibold mb-3 flex items-center">
+                                <i class="fas fa-cogs mr-2 text-pink-500"></i> 自定义词库管理
+                            </h2>
+                            <div class="flex flex-wrap gap-2 mb-2">
+                                <button v-for="lib in customLibraries" :key="lib.id" @click="selectCustomLibrary(lib)"
+                                    :class="{'ring-2 ring-pink-500': selectedCustomLibrary && selectedCustomLibrary.id === lib.id}"
+                                    class="p-2 bg-pink-50 dark:bg-pink-900/30 rounded-lg hover:bg-pink-100 dark:hover:bg-pink-900/50 transition-colors flex flex-col items-center">
+                                    <span class="font-bold">{{ lib.name }}</span>
+                                    <span class="text-xs mt-1">{{ lib.words.length }}词</span>
+                                    <span class="text-xs mt-1">{{ lib.type === 'double' ? '双词' : '三词' }}</span>
+                                </button>
+                            </div>
+                            <div v-if="customLibraries.length === 0" class="text-center text-gray-400">暂无自定义词库</div>
+                        </section>
+                        <!-- 练习区域 -->
+                        <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-6">
+                            <div v-if="currentCustomQuestion && selectedCustomLibrary" class="text-center">
+                                <div class="mb-6">
+                                    <p class="text-lg mb-2">请{{ customQuestionType === 'multiple' ? '选择' : '输入' }}下列的 {{ customModeDescription }}：</p>
+                                    <div class="text-3xl font-bold min-h-[60px] flex items-center justify-center mb-2">
+                                        {{ customQuestionPrompt }}
+                                    </div>
+                                </div>
+                                <!-- 选择题选项 -->
+                                <div v-if="customQuestionType === 'multiple'" class="grid grid-cols-2 gap-4 mb-6">
+                                    <button v-for="(opt, idx) in currentCustomOptions" :key="idx" @click="answerCustom(opt)"
+                                        class="p-4 bg-pink-50 dark:bg-pink-900 rounded-xl hover:bg-pink-100 dark:hover:bg-pink-800 transition-colors text-xl font-medium">
+                                        {{ opt }}
+                                    </button>
+                                </div>
+                                <!-- 填写题输入 -->
+                                <div v-if="customQuestionType === 'input'" class="mb-6">
+                                    <div class="relative">
+                                        <input v-model="customUserInput" @keyup.enter="submitCustomAnswer"
+                                            class="border-2 p-4 rounded-xl w-full bg-gray-50 dark:bg-gray-700 text-xl focus:outline-none focus:ring-2 focus:ring-pink-500"
+                                            placeholder="请输入答案" />
+                                        <button @click="submitCustomAnswer"
+                                            class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-pink-500 text-white rounded-lg px-4 py-2">
+                                            提交
+                                        </button>
+                                    </div>
+                                </div>
+                                <!-- 反馈 -->
+                                <div v-if="customFeedback" class="mt-4">
+                                    <div :class="customFeedback === '正确' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
+                                        class="p-4 rounded-xl text-lg">
+                                        <i :class="customFeedback === '正确' ? 'fas fa-check-circle' : 'fas fa-times-circle'"
+                                            class="mr-2"></i>
+                                        {{ customFeedback }}
+                                        <span v-if="customFeedback === '错误'">正确答案: {{ customCorrectAnswer }}</span>
+                                    </div>
+                                    <button @click="nextCustomQuestion"
+                                        class="mt-4 px-6 py-2 bg-pink-500 text-white rounded-xl hover:bg-pink-600 transition-colors">
+                                        <i class="fas fa-arrow-right mr-2"></i>下一题
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-else class="text-center py-12">
+                                <i class="fas fa-book-open text-5xl text-gray-300 mb-4"></i>
+                                <p class="text-xl">请选择自定义词库开始练习</p>
+                            </div>
+                        </section>
+                    </template>
                 </div>
             </div>
         </main>
@@ -318,9 +444,82 @@
             </div>
         </div>
 
+        <!-- 自定义词库管理模态框 -->
+        <div v-if="showCustomLibraryManager" class="fixed inset-0 bg-transparent bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+                <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <h3 class="text-lg font-semibold">自定义词库管理</h3>
+                    <button @click="showCustomLibraryManager = false" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="p-4 flex-1 overflow-y-auto custom-scrollbar">
+                    <div v-for="lib in customLibraries" :key="lib.id" class="mb-6 p-3 bg-pink-50 dark:bg-pink-900/30 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex-1">
+                                <input v-if="editingCustomLibrary && editingCustomLibrary.id === lib.id"
+                                    v-model="editingCustomLibrary.name"
+                                    @keyup.enter="saveCustomLibraryName"
+                                    @blur="saveCustomLibraryName"
+                                    class="w-full px-2 py-1 bg-white dark:bg-gray-800 rounded border border-pink-500"/>
+                                <span v-else class="font-medium">{{ lib.name }}</span>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button @click="toggleCustomLibraryCollapse(lib)" class="text-gray-500 hover:text-gray-900" :title="lib._collapsed ? '展开' : '折叠'">
+                                    <i :class="lib._collapsed ? 'fas fa-chevron-down' : 'fas fa-chevron-up'"></i>
+                                </button>
+                                <button @click="editCustomLibraryName(lib)" class="text-blue-600 hover:text-blue-800">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button @click="deleteCustomLibrary(lib)" class="text-red-600 hover:text-red-800">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                <button @click.stop="exportCustomLibrary(lib)" class="text-xs text-green-500 hover:text-green-700 mt-1" title="导出为Base64">
+                                    <i class="fas fa-file-export"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- 词条内容编辑区，折叠控制 -->
+                        <div v-show="!lib._collapsed">
+                            <div v-for="(word, idx) in lib.words" :key="idx" class="flex items-center gap-2 mb-1">
+                                <input v-model="lib.words[idx].word1" placeholder="词1" class="w-1/3 px-2 py-1 rounded border border-pink-300"/>
+                                <input v-model="lib.words[idx].word2" placeholder="词2" class="w-1/3 px-2 py-1 rounded border border-pink-300"/>
+                                <input v-if="lib.type==='triple'" v-model="lib.words[idx].word3" placeholder="词3" class="w-1/3 px-2 py-1 rounded border border-pink-300"/>
+                                <button @click="removeCustomWord(lib, idx)" class="text-red-500 hover:text-red-700"><i class="fas fa-minus-circle"></i></button>
+                            </div>
+                            <button @click="addCustomWord(lib)" class="mt-2 px-2 py-1 bg-pink-200 dark:bg-pink-700 rounded hover:bg-pink-300 dark:hover:bg-pink-600 text-pink-900 dark:text-pink-100 text-sm">
+                                <i class="fas fa-plus mr-1"></i>添加词条
+                            </button>
+                        </div>
+                    </div>
+                    <div v-if="customLibraries.length === 0" class="text-center py-8 text-gray-500">
+                        <i class="fas fa-inbox text-3xl mb-3"></i>
+                        <p>暂无自定义词库</p>
+                    </div>
+                </div>
+                <!-- 导入Base64入口 -->
+                <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex flex-col gap-2">
+                    <div class="flex gap-2 items-center">
+                        <input v-model="importBase64Text" placeholder="粘贴Base64编码词库" class="flex-1 px-2 py-1 rounded border border-pink-300"/>
+                        <button @click="importCustomLibraryFromBase64" class="px-3 py-1 bg-green-200 dark:bg-green-700 rounded hover:bg-green-300 dark:hover:bg-green-600 text-green-900 dark:text-green-100 text-sm">
+                            <i class="fas fa-file-import mr-1"></i>导入
+                        </button>
+                    </div>
+                    <div class="flex justify-between mt-2">
+                        <button @click="addEmptyCustomLibrary" class="px-4 py-2 bg-pink-200 dark:bg-pink-700 rounded-lg hover:bg-pink-300 dark:hover:bg-pink-600 text-pink-900 dark:text-pink-100">
+                            <i class="fas fa-plus mr-1"></i>新增空白词库
+                        </button>
+                        <button @click="showCustomLibraryManager = false" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600">
+                            关闭
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 底部 -->
         <footer class="p-4 text-center text-sm text-gray-500 bg-white dark:bg-gray-800 mt-auto">
-            © 2025 日语学习网页 | 掌握五十音，开启日语学习之旅
+            © 2025 词点 | 你的专属词库练习与管理工具
         </footer>
     </div>
 
@@ -330,7 +529,7 @@
         createApp({
             data() {
                 return {
-                    theme: localStorage.theme || 'light',
+                    theme: localStorage.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
                     // 标准五十音行数据
                     kanaRows: [
                         { id: 'row-1', name: 'あ行', kana: ['あ','い','う','え','お'], katakana: ['ア','イ','ウ','エ','オ'], romaji: ['a','i','u','e','o'] },
@@ -493,7 +692,24 @@
                     
                     // 词库管理相关状态
                     showLibraryManager: false,
-                    editingLibrary: null
+                    editingLibrary: null,
+                    isCustomMode: false, // 新增：自定义模式状态
+                    customLibraries: [], // 自定义词库列表
+                    selectedCustomLibrary: null,
+                    customQuestionType: 'multiple',
+                    currentCustomQuestion: null,
+                    currentCustomOptions: [],
+                    customUserInput: '',
+                    customFeedback: '',
+                    customCorrectAnswer: '',
+                    customStats: { total: 0, correct: 0 },
+                    editingCustomLibrary: null,
+                    currentView: 'japanese', // 'japanese' 或 'custom'
+                    tripleMode: 'a-b', // 三词词库对照模式
+
+                    // 自定义词库管理模态框状态
+                    showCustomLibraryManager: false,
+                    importBase64Text: '',
                 };
             },
             computed: {
@@ -527,18 +743,32 @@
                 },
                 hasDuplicateOptions() {
                     return this.currentOptions.some(opt => opt.includes('*'));
+                },
+                customModeDescription() {
+                    if (!this.selectedCustomLibrary) return '';
+                    if (this.selectedCustomLibrary.type === 'double') return '关联词';
+                    if (this.selectedCustomLibrary.type === 'triple') return '三词关联';
+                    return '';
+                },
+                customQuestionPrompt() {
+                    if (!this.currentCustomQuestion) return '';
+                    if (this.selectedCustomLibrary && this.selectedCustomLibrary.type === 'triple') {
+                        if (this.tripleMode === 'a-b') return this.currentCustomQuestion.word1;
+                        if (this.tripleMode === 'b-c') return this.currentCustomQuestion.word2;
+                        if (this.tripleMode === 'a-c') return this.currentCustomQuestion.word1;
+                    }
+                    // 双词默认 word1
+                    return this.currentCustomQuestion.word1;
                 }
             },
             methods: {
                 toggleTheme() {
+                    this.theme = this.theme === 'dark' ? 'light' : 'dark';
+                    localStorage.theme = this.theme;
                     if (this.theme === 'dark') {
-                        this.theme = 'light';
-                        localStorage.theme = 'light';
-                        document.documentElement.classList.remove('dark');
-                    } else {
-                        this.theme = 'dark';
-                        localStorage.theme = 'dark';
                         document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
                     }
                 },
                 selectRow(row) {
@@ -834,16 +1064,282 @@
                     if (savedLibraries) {
                         this.importedLibraries = JSON.parse(savedLibraries);
                     }
+                },
+
+                // 进入自定义词库练习模式
+                enterCustomMode() {
+                    this.isCustomMode = true;
+                    this.selectedRow = null; // 清空当前选中的假名组
+                    this.mode = 'kana-romaji'; // 默认模式为假名
+                    this.questionType = 'multiple'; // 默认题型为选择题
+                    this.nextQuestion(); // 加载第一个问题
+                },
+
+                // 退出自定义词库练习模式
+                exitCustomMode() {
+                    this.isCustomMode = false;
+                    this.selectedRow = null; // 清空当前选中的假名组
+                    this.mode = 'kana-romaji'; // 默认模式为假名
+                    this.questionType = 'multiple'; // 默认题型为选择题
+                    this.nextQuestion(); // 加载第一个问题
+                },
+
+                // 自定义模式相关方法
+                loadCustomJson(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.addEventListener('load', () => {
+                        try {
+                            const data = JSON.parse(reader.result);
+                            let type = 'double';
+                            if (data.length > 0 && data[0].word3) type = 'triple';
+                            const newLibrary = {
+                                id: 'custom-' + Date.now(),
+                                name: '自定义词库-' + (this.customLibraries.length + 1),
+                                type,
+                                words: data
+                            };
+                            if (newLibrary.words.length > 0) {
+                                this.customLibraries.push(newLibrary);
+                                this.saveCustomLibrariesToStorage();
+                                alert('成功导入 ' + newLibrary.words.length + ' 条词汇！');
+                                this.selectCustomLibrary(newLibrary);
+                            } else {
+                                alert('未找到有效词汇数据！');
+                            }
+                        } catch (e) {
+                            alert('JSON 解析失败，请检查文件格式。');
+                        }
+                    });
+                    reader.readAsText(file);
+                },
+                downloadCustomSample(type) {
+                    let sampleData = [];
+                    let filename = '';
+                    if (type === 'double') {
+                        sampleData = [
+                            { word1: '中国', word2: '北京' },
+                            { word1: '日本', word2: '东京' },
+                            { word1: '法国', word2: '巴黎' }
+                        ];
+                        filename = '双词词库示例.json';
+                    } else {
+                        sampleData = [
+                            { word1: '广东', word2: '广州', word3: '粤' },
+                            { word1: '山东', word2: '济南', word3: '鲁' },
+                            { word1: '四川', word2: '成都', word3: '川' }
+                        ];
+                        filename = '三词词库示例.json';
+                    }
+                    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(sampleData, null, 2));
+                    const downloadAnchorNode = document.createElement('a');
+                    downloadAnchorNode.setAttribute('href', dataStr);
+                    downloadAnchorNode.setAttribute('download', filename);
+                    document.body.appendChild(downloadAnchorNode);
+                    downloadAnchorNode.click();
+                    downloadAnchorNode.remove();
+                },
+                selectCustomLibrary(lib) {
+                    this.selectedCustomLibrary = lib;
+                    this.nextCustomQuestion();
+                },
+                editCustomLibraryName(lib) {
+                    this.editingCustomLibrary = { ...lib };
+                },
+                saveCustomLibraryName() {
+                    if (this.editingCustomLibrary) {
+                        const index = this.customLibraries.findIndex(l => l.id === this.editingCustomLibrary.id);
+                        if (index !== -1) {
+                            this.customLibraries[index].name = this.editingCustomLibrary.name;
+                            this.saveCustomLibrariesToStorage();
+                        }
+                        this.editingCustomLibrary = null;
+                    }
+                },
+                deleteCustomLibrary(lib) {
+                    if (confirm(`确定要删除词库 "${lib.name}" 吗？`)) {
+                        this.customLibraries = this.customLibraries.filter(l => l.id !== lib.id);
+                        this.saveCustomLibrariesToStorage();
+                        if (this.selectedCustomLibrary && this.selectedCustomLibrary.id === lib.id) {
+                            this.selectedCustomLibrary = null;
+                            this.currentCustomQuestion = null;
+                        }
+                    }
+                },
+                saveCustomLibrariesToStorage() {
+                    localStorage.setItem('customLibraries', JSON.stringify(this.customLibraries));
+                },
+                loadCustomLibrariesFromStorage() {
+                    const saved = localStorage.getItem('customLibraries');
+                    if (saved) {
+                        this.customLibraries = JSON.parse(saved);
+                    }
+                },
+                // 练习逻辑
+                nextCustomQuestion() {
+                    this.customFeedback = '';
+                    this.customUserInput = '';
+                    if (!this.selectedCustomLibrary || this.selectedCustomLibrary.words.length === 0) {
+                        this.currentCustomQuestion = null;
+                        return;
+                    }
+                    const pool = this.selectedCustomLibrary.words;
+                    const index = Math.floor(Math.random() * pool.length);
+                    this.currentCustomQuestion = pool[index];
+                    if (this.customQuestionType === 'multiple') {
+                        this.currentCustomOptions = this.generateCustomOptions(pool);
+                    }
+                },
+                generateCustomOptions(pool) {
+                    const options = [];
+                    const correct = this.getCustomCorrectAnswer();
+                    options.push(correct);
+                    let candidates;
+                    if (this.selectedCustomLibrary.type === 'triple') {
+                        // 根据 tripleMode 选择干扰项
+                        if (this.tripleMode === 'a-b') {
+                            candidates = pool.map(item => item.word2);
+                        } else if (this.tripleMode === 'b-c') {
+                            candidates = pool.map(item => item.word3);
+                        } else if (this.tripleMode === 'a-c') {
+                            candidates = pool.map(item => item.word3);
+                        } else {
+                            candidates = [];
+                        }
+                    } else {
+                        candidates = pool.map(item => item.word2);
+                    }
+                    // 去重并排除正确答案
+                    candidates = candidates.filter((item, idx, arr) => arr.indexOf(item) === idx && item !== correct);
+                    while (options.length < 4 && candidates.length > 0) {
+                        const randomIdx = Math.floor(Math.random() * candidates.length);
+                        options.push(candidates.splice(randomIdx, 1)[0]);
+                    }
+                    while (options.length < 4) {
+                        options.push('——');
+                    }
+                    return options.sort(() => Math.random() - 0.5);
+                },
+                getCustomCorrectAnswer() {
+                    if (!this.currentCustomQuestion) return '';
+                    if (this.selectedCustomLibrary.type === 'triple') {
+                        if (this.tripleMode === 'a-b') return this.currentCustomQuestion.word2;
+                        if (this.tripleMode === 'b-c') return this.currentCustomQuestion.word3;
+                        if (this.tripleMode === 'a-c') return this.currentCustomQuestion.word3;
+                    }
+                    // 双词默认 word1->word2
+                    return this.currentCustomQuestion.word2;
+                },
+                answerCustom(choice) {
+                    this.customStats.total++;
+                    const correct = this.getCustomCorrectAnswer();
+                    this.customCorrectAnswer = correct;
+                    if (choice === correct) {
+                        this.customFeedback = '正确';
+                        this.customStats.correct++;
+                    } else {
+                        this.customFeedback = '错误';
+                    }
+                },
+                submitCustomAnswer() {
+                    this.customStats.total++;
+                    const ans = this.customUserInput.trim();
+                    const correct = this.getCustomCorrectAnswer();
+                    this.customCorrectAnswer = correct;
+                    if (ans === correct) {
+                        this.customFeedback = '正确';
+                        this.customStats.correct++;
+                    } else {
+                        this.customFeedback = '错误';
+                    }
+                    this.customUserInput = '';
+                },
+                switchToCustom() {
+                    this.currentView = 'custom';
+                },
+                switchToJapanese() {
+                    this.currentView = 'japanese';
+                },
+                addEmptyCustomLibrary() {
+                    const id = 'custom-' + Date.now();
+                    this.customLibraries.push({
+                        id,
+                        name: '新建词库',
+                        type: 'double',
+                        words: []
+                    });
+                    this.saveCustomLibrariesToStorage();
+                },
+                addCustomWord(lib) {
+                    if (lib.type === 'triple') {
+                        lib.words.push({ word1: '', word2: '', word3: '' });
+                    } else {
+                        lib.words.push({ word1: '', word2: '' });
+                    }
+                    this.saveCustomLibrariesToStorage();
+                },
+                removeCustomWord(lib, idx) {
+                    lib.words.splice(idx, 1);
+                    this.saveCustomLibrariesToStorage();
+                },
+                exportCustomLibrary(lib) {
+                    const json = JSON.stringify({
+                        name: lib.name,
+                        type: lib.type,
+                        words: lib.words
+                    });
+                    const compressed = LZString.compressToBase64(json);
+                    // 复制到剪贴板
+                    navigator.clipboard.writeText(compressed).then(() => {
+                        alert('已复制到剪贴板！');
+                    }, () => {
+                        prompt('复制以下Base64内容：', compressed);
+                    });
+                },
+                importCustomLibraryFromBase64() {
+                    if (!this.importBase64Text.trim()) {
+                        alert('请输入Base64编码内容');
+                        return;
+                    }
+                    try {
+                        const json = LZString.decompressFromBase64(this.importBase64Text.trim());
+                        const data = JSON.parse(json);
+                        if (!data || !data.words || !Array.isArray(data.words)) throw new Error('格式错误');
+                        const id = 'custom-' + Date.now();
+                        this.customLibraries.push({
+                            id,
+                            name: data.name || '导入词库',
+                            type: data.type || 'double',
+                            words: data.words
+                        });
+                        this.saveCustomLibrariesToStorage();
+                        this.importBase64Text = '';
+                        alert('导入成功！');
+                    } catch (e) {
+                        alert('导入失败，内容无效或已损坏！');
+                    }
+                },
+                toggleCustomLibraryCollapse(lib) {
+                    if (lib._collapsed === undefined) this.$set ? this.$set(lib, '_collapsed', true) : (lib._collapsed = true);
+                    lib._collapsed = !lib._collapsed;
                 }
             },
             created() {
-                // 初始化主题
-                if (this.theme === 'dark') {
+                // 主题初始化，兼容 tailwindcss dark 方案
+                if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    this.theme = 'dark';
                     document.documentElement.classList.add('dark');
+                } else {
+                    this.theme = 'light';
+                    document.documentElement.classList.remove('dark');
                 }
-                
                 // 从本地存储加载词库
                 this.loadLibrariesFromStorage();
+                this.loadCustomLibrariesFromStorage(); // 加载自定义词库
+                // 初始化时默认折叠所有自定义词库内容
+                this.customLibraries.forEach(lib => { lib._collapsed = true; });
+                // 移除自动添加的内置自定义词库（不做任何内置库初始化）
             }
         }).mount('#app');
     </script>
