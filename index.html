@@ -1325,6 +1325,14 @@
                     lib._collapsed = !lib._collapsed;
                 }
             },
+            watch: {
+                tripleMode() {
+                    // 切换三词对照模式时自动刷新题目和选项
+                    if (this.selectedCustomLibrary && this.selectedCustomLibrary.type === 'triple') {
+                        this.nextCustomQuestion();
+                    }
+                }
+            },
             created() {
                 // 主题初始化，兼容 tailwindcss dark 方案
                 if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
