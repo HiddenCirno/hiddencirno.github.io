@@ -535,17 +535,17 @@
                 </div>
                 <!-- 导入Base64入口 -->
                 <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex flex-col gap-2">
-                    <div class="flex gap-2 items-center">
-                        <input v-model="importBase64Text" placeholder="粘贴Base64编码词库" class="flex-1 px-2 py-1 rounded border border-pink-300"/>
-                        <button @click="importCustomLibraryFromBase64" class="px-3 py-1 bg-green-200 dark:bg-green-700 rounded hover:bg-green-300 dark:hover:bg-green-600 text-green-900 dark:text-green-100 text-sm">
+                    <div class="flex flex-col sm:flex-row gap-2 items-stretch">
+                        <input v-model="importBase64Text" placeholder="粘贴Base64编码词库" class="flex-1 px-2 py-1 rounded border border-pink-300 max-w-full"/>
+                        <button @click="importCustomLibraryFromBase64" class="px-3 py-1 bg-green-200 dark:bg-green-700 rounded hover:bg-green-300 dark:hover:bg-green-600 text-green-900 dark:text-green-100 text-sm w-full sm:w-auto">
                             <i class="fas fa-file-import mr-1"></i>导入
                         </button>
                     </div>
-                    <div class="flex justify-between mt-2">
-                        <button @click="addEmptyCustomLibrary" class="px-4 py-2 bg-pink-200 dark:bg-pink-700 rounded-lg hover:bg-pink-300 dark:hover:bg-pink-600 text-pink-900 dark:text-pink-100">
+                    <div class="flex flex-col sm:flex-row justify-between mt-2 gap-2">
+                        <button @click="addEmptyCustomLibrary" class="px-4 py-2 bg-pink-200 dark:bg-pink-700 rounded-lg hover:bg-pink-300 dark:hover:bg-pink-600 text-pink-900 dark:text-pink-100 w-full sm:w-auto">
                             <i class="fas fa-plus mr-1"></i>新增空白词库
                         </button>
-                        <button @click="showCustomLibraryManager = false" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600">
+                        <button @click="showCustomLibraryManager = false" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 w-full sm:w-auto">
                             关闭
                         </button>
                     </div>
