@@ -151,6 +151,21 @@
                                     </button>
                                 </button>
                             </div>
+                            <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-sm">答对后自动跳转下一题</span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" v-model="autoNext" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-pink-500 dark:bg-gray-700 rounded-full peer peer-checked:bg-pink-500 transition-all"></div>
+                                        <div class="absolute left-1 top-1 w-4 h-4 bg-white border border-gray-300 rounded-full transition-all peer-checked:translate-x-5"></div>
+                                    </label>
+                                </div>
+                                <div v-if="autoNext" class="mt-2 flex items-center space-x-2">
+                                    <span class="text-xs">延迟</span>
+                                    <input type="number" min="1" max="30" v-model.number="autoNextDelay" class="w-14 px-2 py-1 rounded border border-pink-300 text-xs" />
+                                    <span class="text-xs">秒</span>
+                                </div>
+                            </section>
                         </section>
 
                         <!-- 练习设置 -->
@@ -213,6 +228,21 @@
                                 <button @click="showCustomLibraryManager = true" class="text-sm text-pink-600 hover:text-pink-800 dark:hover:text-pink-400">
                                     <i class="fas fa-cog mr-1"></i>管理
                                 </button>
+                            </div>
+                        </section>
+                        <section class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-sm">答对后自动跳转下一题</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" v-model="autoNext" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-pink-500 dark:bg-gray-700 rounded-full peer peer-checked:bg-pink-500 transition-all"></div>
+                                    <div class="absolute left-1 top-1 w-4 h-4 bg-white border border-gray-300 rounded-full transition-all peer-checked:translate-x-5"></div>
+                                </label>
+                            </div>
+                            <div v-if="autoNext" class="mt-2 flex items-center space-x-2">
+                                <span class="text-xs">延迟</span>
+                                <input type="number" min="1" max="30" v-model.number="autoNextDelay" class="w-14 px-2 py-1 rounded border border-pink-300 text-xs" />
+                                <span class="text-xs">秒</span>
                             </div>
                         </section>
                     </div>
@@ -300,6 +330,9 @@
                                         {{ feedback }}
                                         <span v-if="feedback === '错误'">正确答案: {{ correctAnswer }}</span>
                                     </div>
+                                    <div v-if="autoNext && feedback === '正确' && autoNextCountdownValue > 0" class="mt-2 text-xs text-pink-600">
+                                        {{ autoNextCountdownValue }} 秒后自动跳转下一题...
+                                    </div>
                                     <button @click="nextQuestion"
                                         class="mt-4 px-6 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors">
                                         <i class="fas fa-arrow-right mr-2"></i>下一题
@@ -382,6 +415,9 @@
                                             class="mr-2"></i>
                                         {{ customFeedback }}
                                         <span v-if="customFeedback === '错误'">正确答案: {{ customCorrectAnswer }}</span>
+                                    </div>
+                                    <div v-if="autoNext && customFeedback === '正确' && autoNextCountdownValue > 0" class="mt-2 text-xs text-pink-600">
+                                        {{ autoNextCountdownValue }} 秒后自动跳转下一题...
                                     </div>
                                     <button @click="nextCustomQuestion"
                                         class="mt-4 px-6 py-2 bg-pink-500 text-white rounded-xl hover:bg-pink-600 transition-colors">
@@ -710,6 +746,13 @@
                     // 自定义词库管理模态框状态
                     showCustomLibraryManager: false,
                     importBase64Text: '',
+                    lastQuestionIndex: null, // 日语模式上一题索引
+                    lastCustomQuestionIndex: null, // 自定义模式上一题索引
+                    autoNext: JSON.parse(localStorage.getItem('autoNext') || 'false'),
+                    autoNextDelay: Number(localStorage.getItem('autoNextDelay') || 3),
+                    autoNextTimer: null,
+                    autoNextCountdown: null,
+                    autoNextCountdownValue: 0,
                 };
             },
             computed: {
@@ -794,6 +837,7 @@
                     this.nextQuestion();
                 },
                 answer(choice) {
+                    if (this.feedback) return; // 答题后禁止重复作答
                     this.stats.total++;
                     
                     let correct = '';
@@ -814,11 +858,24 @@
                     if (choice === correct) {
                         this.feedback = '正确';
                         this.stats.correct++;
+                        if (this.autoNext) {
+                            clearTimeout(this.autoNextTimer);
+                            clearInterval(this.autoNextCountdown);
+                            this.autoNextCountdownValue = this.autoNextDelay;
+                            this.autoNextCountdown = setInterval(() => {
+                                this.autoNextCountdownValue--;
+                                if (this.autoNextCountdownValue <= 0) {
+                                    clearInterval(this.autoNextCountdown);
+                                }
+                            }, 1000);
+                            this.autoNextTimer = setTimeout(() => this.nextQuestion(), this.autoNextDelay * 1000);
+                        }
                     } else {
                         this.feedback = '错误';
                     }
                 },
                 submitAnswer() {
+                    if (this.feedback) return; // 答题后禁止重复作答
                     this.stats.total++;
                     const ans = this.userInput.trim();
                     
@@ -840,6 +897,18 @@
                     if (ans === correct) {
                         this.feedback = '正确';
                         this.stats.correct++;
+                        if (this.autoNext) {
+                            clearTimeout(this.autoNextTimer);
+                            clearInterval(this.autoNextCountdown);
+                            this.autoNextCountdownValue = this.autoNextDelay;
+                            this.autoNextCountdown = setInterval(() => {
+                                this.autoNextCountdownValue--;
+                                if (this.autoNextCountdownValue <= 0) {
+                                    clearInterval(this.autoNextCountdown);
+                                }
+                            }, 1000);
+                            this.autoNextTimer = setTimeout(() => this.nextQuestion(), this.autoNextDelay * 1000);
+                        }
                     } else {
                         this.feedback = '错误';
                     }
@@ -847,6 +916,9 @@
                     this.userInput = '';
                 },
                 nextQuestion() {
+                    clearTimeout(this.autoNextTimer);
+                    clearInterval(this.autoNextCountdown);
+                    this.autoNextCountdownValue = 0;
                     this.feedback = '';
                     this.userInput = '';
                     
@@ -859,7 +931,15 @@
                     }
                     
                     // 随机选择一个问题
-                    const index = Math.floor(Math.random() * pool.length);
+                    let index;
+                    if (pool.length === 1) {
+                        index = 0;
+                    } else {
+                        do {
+                            index = Math.floor(Math.random() * pool.length);
+                        } while (index === this.lastQuestionIndex);
+                    }
+                    this.lastQuestionIndex = index;
                     this.currentQuestion = pool[index];
                     
                     // 对于平假名-片假名模式，随机选择方向
@@ -1181,6 +1261,9 @@
                 },
                 // 练习逻辑
                 nextCustomQuestion() {
+                    clearTimeout(this.autoNextTimer);
+                    clearInterval(this.autoNextCountdown);
+                    this.autoNextCountdownValue = 0;
                     this.customFeedback = '';
                     this.customUserInput = '';
                     if (!this.selectedCustomLibrary || this.selectedCustomLibrary.words.length === 0) {
@@ -1188,7 +1271,15 @@
                         return;
                     }
                     const pool = this.selectedCustomLibrary.words;
-                    const index = Math.floor(Math.random() * pool.length);
+                    let index;
+                    if (pool.length === 1) {
+                        index = 0;
+                    } else {
+                        do {
+                            index = Math.floor(Math.random() * pool.length);
+                        } while (index === this.lastCustomQuestionIndex);
+                    }
+                    this.lastCustomQuestionIndex = index;
                     this.currentCustomQuestion = pool[index];
                     if (this.customQuestionType === 'multiple') {
                         this.currentCustomOptions = this.generateCustomOptions(pool);
@@ -1235,17 +1326,31 @@
                     return this.currentCustomQuestion.word2;
                 },
                 answerCustom(choice) {
+                    if (this.customFeedback) return; // 答题后禁止重复作答
                     this.customStats.total++;
                     const correct = this.getCustomCorrectAnswer();
                     this.customCorrectAnswer = correct;
                     if (choice === correct) {
                         this.customFeedback = '正确';
                         this.customStats.correct++;
+                        if (this.autoNext) {
+                            clearTimeout(this.autoNextTimer);
+                            clearInterval(this.autoNextCountdown);
+                            this.autoNextCountdownValue = this.autoNextDelay;
+                            this.autoNextCountdown = setInterval(() => {
+                                this.autoNextCountdownValue--;
+                                if (this.autoNextCountdownValue <= 0) {
+                                    clearInterval(this.autoNextCountdown);
+                                }
+                            }, 1000);
+                            this.autoNextTimer = setTimeout(() => this.nextCustomQuestion(), this.autoNextDelay * 1000);
+                        }
                     } else {
                         this.customFeedback = '错误';
                     }
                 },
                 submitCustomAnswer() {
+                    if (this.customFeedback) return; // 答题后禁止重复作答
                     this.customStats.total++;
                     const ans = this.customUserInput.trim();
                     const correct = this.getCustomCorrectAnswer();
@@ -1253,6 +1358,18 @@
                     if (ans === correct) {
                         this.customFeedback = '正确';
                         this.customStats.correct++;
+                        if (this.autoNext) {
+                            clearTimeout(this.autoNextTimer);
+                            clearInterval(this.autoNextCountdown);
+                            this.autoNextCountdownValue = this.autoNextDelay;
+                            this.autoNextCountdown = setInterval(() => {
+                                this.autoNextCountdownValue--;
+                                if (this.autoNextCountdownValue <= 0) {
+                                    clearInterval(this.autoNextCountdown);
+                                }
+                            }, 1000);
+                            this.autoNextTimer = setTimeout(() => this.nextCustomQuestion(), this.autoNextDelay * 1000);
+                        }
                     } else {
                         this.customFeedback = '错误';
                     }
@@ -1334,6 +1451,12 @@
                     if (this.selectedCustomLibrary && this.selectedCustomLibrary.type === 'triple') {
                         this.nextCustomQuestion();
                     }
+                },
+                autoNext(val) {
+                    localStorage.setItem('autoNext', JSON.stringify(val));
+                },
+                autoNextDelay(val) {
+                    localStorage.setItem('autoNextDelay', val);
                 }
             },
             created() {
